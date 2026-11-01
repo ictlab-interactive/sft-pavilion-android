@@ -8,9 +8,12 @@ not a reconstruction of its original Java source. New updater code is in `src/`.
 
 ## What students see
 
-- A fourth **Updates** button in the bottom navigation.
-- An automatic update check after opening the app; successful checks are spaced
-  six hours apart, and offline failures do not block the website.
+- Automatic, silent checks six seconds after opening or returning to the app,
+  then every 15 minutes while it remains visible. Polling stops in the background.
+- An update popup only when a compatible newer version is available. There is no
+  Updates tab, manual check button, or "up to date" notification.
+- **Later** snoozes the same release for six hours; a different newer release can
+  still be offered. Offline failures do not block the website.
 - **Update now / Later**, release notes, download size, and download progress.
 - A verified APK download followed by Android's installation confirmation.
 - Android 8+ may first require **Allow from this source** for SFT Pavilion.
@@ -28,18 +31,20 @@ There is no installer entry point exposed to website JavaScript.
 ## First rollout
 
 Existing v1.2.6 installations do not contain the checker. Students must install
-v1.2.7 once from the official release/download link. Future releases can be offered
-inside the app. Do not uninstall the current app as the first step: try the signed
+an updater-capable APK once from the official release/download link. v1.2.7 already
+contains an automatic checker and can offer v1.2.8 once its two release assets are
+published. v1.2.8 removes the manual tab and checks on each foreground return.
+Do not uninstall the current app as the first step: try the signed
 APK as an update over the existing installation, then check saved reminders.
 
 ## Publish a release
 
 1. Edit `release.json`: increase `versionCode` for every release, choose a new
-   `versionName` such as `1.2.8`, and write the release notes.
+   `versionName` such as `1.2.9`, and write the release notes.
 2. Build and sign using the SAME private signing backup and lineage described below.
 3. Test installation over the previous app on a real phone. Check sign-in,
-   timetable reminders, the Updates button, permissions, and a future-version prompt.
-4. Create a GitHub Release with the exact tag `v<versionName>` (for example `v1.2.8`).
+   timetable reminders, permissions, and the automatic future-version prompt.
+4. Create a GitHub Release with the exact tag `v<versionName>` (for example `v1.2.9`).
 5. Attach BOTH `dist/SFT-Pavilion.apk` and `dist/update.json`. Keep these filenames.
    Publish it as the latest stable release. Keep older releases available because
    this recovered build depends on the fixed v1.2.6 baseline.

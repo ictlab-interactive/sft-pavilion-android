@@ -1,6 +1,6 @@
 {
-  "versionCode": 10,
-  "versionName": "1.2.7",
+  "versionCode": 11,
+  "versionName": "1.2.8",
   "minSdk": 23,
-  "releaseNotes": "Added in-app update checks, an Updates button, download progress, and verified APK downloads. Existing timetable reminders and website access are preserved."
+  "releaseNotes": "Updates now check automatically when you open the app and while it stays open. A popup appears when a newer version is available. Removed the Updates tab."
 }

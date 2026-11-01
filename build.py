@@ -89,19 +89,16 @@ def patch_decoded(decoded, release):
     yml.write_text(text)
     main = decoded / 'smali/com/sftpavilion/app/MainActivity.smali'
     text = main.read_text()
-    nav_anchor = '    .line 148\n    invoke-virtual {p0, v0}, Lcom/sftpavilion/app/MainActivity;->setContentView(Landroid/view/View;)V'
-    if text.count(nav_anchor) != 1:
-        raise RuntimeError('Unexpected navigation baseline')
-    text = text.replace(nav_anchor,
-        '    invoke-static {p0, v1}, Lcom/sftpavilion/updates/UpdateManager;->attachNav(Landroid/app/Activity;Landroid/widget/LinearLayout;)V\n\n' + nav_anchor)
-    start = text.index('.method protected onResume()V')
-    end = text.index('.end method', start)
-    part = text[start:end]
-    if part.count('    return-void') != 1:
-        raise RuntimeError('Unexpected lifecycle baseline')
-    part = part.replace('    return-void',
-        '    invoke-static {p0}, Lcom/sftpavilion/updates/UpdateManager;->onResume(Landroid/app/Activity;)V\n\n    return-void')
-    text = text[:start] + part + text[end:]
+    # Preserve the original three-item navigation; hook only foreground lifecycle.
+    for method in ['onResume', 'onPause']:
+        start = text.index('.method protected ' + method + '()V')
+        end = text.index('.end method', start)
+        part = text[start:end]
+        if part.count('    return-void') != 1:
+            raise RuntimeError('Unexpected lifecycle baseline: ' + method)
+        part = part.replace('    return-void',
+            '    invoke-static {p0}, Lcom/sftpavilion/updates/UpdateManager;->' + method + '(Landroid/app/Activity;)V\n\n    return-void')
+        text = text[:start] + part + text[end:]
     main.write_text(text)
     config = decoded / 'smali/com/sftpavilion/app/BuildConfig.smali'
     text = config.read_text().replace('APPLICATION_ID:Ljava/lang/String; = "com.sftpavilion.app"',

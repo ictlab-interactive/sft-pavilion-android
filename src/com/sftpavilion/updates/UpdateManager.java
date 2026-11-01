@@ -8,17 +8,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
-import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.view.Gravity;
-import android.view.View;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -40,9 +34,16 @@ public final class UpdateManager {
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
     private static final AtomicBoolean BUSY = new AtomicBoolean(false);
     private static WeakReference<Activity> screen = new WeakReference<Activity>(null);
-    private static boolean dialogOpen, waitingForPermission;
+    private static boolean dialogOpen, waitingForPermission, foreground;
     private static ReleaseInfo ready;
     private static final long SIX_HOURS = 6 * 60 * 60 * 1000L;
+    private static final long CHECK_INTERVAL = 15 * 60 * 1000L;
+    private static final Runnable AUTO_CHECK = new Runnable() { public void run() {
+        Activity current = activity();
+        if (!foreground || current == null) return;
+        check(current);
+        MAIN.postDelayed(this, CHECK_INTERVAL);
+    }};
 
     private UpdateManager() {}
     private static Activity activity() {
@@ -60,79 +61,64 @@ public final class UpdateManager {
     /** Called from the original MainActivity.onResume after its existing logic. */
     public static void onResume(Activity a) {
         screen = new WeakReference<Activity>(a);
+        foreground = true;
+        MAIN.removeCallbacks(AUTO_CHECK);
+        // Check on every opening/return, then periodically while the app stays visible.
+        MAIN.postDelayed(AUTO_CHECK, 6000);
         if (waitingForPermission && ready != null) {
             waitingForPermission = false;
             if (Build.VERSION.SDK_INT < 26 || a.getPackageManager().canRequestPackageInstalls()) {
                 // Re-hash the file in the worker before granting the installer access.
                 installReady(ready);
-            } else toast("Update installation was not enabled. Tap Updates to try again.");
+            } else toast("Update installation was not enabled. Reopen the app to try again.");
             return;
         }
-        final WeakReference<Activity> scheduled = new WeakReference<Activity>(a);
-        MAIN.postDelayed(new Runnable() { public void run() {
-            Activity current = activity();
-            if (current != null && current == scheduled.get() &&
-                    System.currentTimeMillis() >= prefs(current).getLong("next_check", 0)) check(current, false);
-        }}, 6000);
     }
 
-    /** Adds a fourth native bottom-navigation item without modifying the website. */
-    public static void attachNav(final Activity a, LinearLayout bar) {
-        LinearLayout item = new LinearLayout(a);
-        item.setOrientation(LinearLayout.VERTICAL); item.setGravity(Gravity.CENTER);
-        int pad = dp(a, 6); item.setPadding(pad, pad, pad, pad);
-        item.setContentDescription("Check for app updates");
-        item.setBackgroundResource(android.R.drawable.list_selector_background);
-        ImageView icon = new ImageView(a);
-        icon.setImageResource(android.R.drawable.stat_sys_download_done);
-        icon.setColorFilter(Color.rgb(192, 227, 216));
-        item.addView(icon, new LinearLayout.LayoutParams(dp(a, 23), dp(a, 23)));
-        TextView label = new TextView(a); label.setText("Updates"); label.setTextSize(11);
-        label.setTextColor(Color.rgb(192, 227, 216)); label.setGravity(Gravity.CENTER);
-        item.addView(label);
-        item.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { check(a, true); }});
-        bar.addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
-    }
-    private static int dp(Context c, int n) { return Math.round(n * c.getResources().getDisplayMetrics().density); }
-
-    public static void check(Activity a, final boolean manual) {
-        screen = new WeakReference<Activity>(a);
-        if (dialogOpen || !BUSY.compareAndSet(false, true)) {
-            if (manual) toast("An update check or download is already open."); return;
+    /** Stop polling when the app is no longer visible. */
+    public static void onPause(Activity a) {
+        if (screen.get() == a) {
+            foreground = false;
+            MAIN.removeCallbacks(AUTO_CHECK);
         }
+    }
+
+    private static void check(Activity a) {
+        screen = new WeakReference<Activity>(a);
+        if (dialogOpen || !BUSY.compareAndSet(false, true)) return;
         final Context app = a.getApplicationContext();
-        if (manual) toast("Checking for updates…");
-        // Bound failed/offline automatic checks; a manual check always bypasses this timer.
-        prefs(app).edit().putLong("next_check", System.currentTimeMillis() + 15 * 60 * 1000L).apply();
         IO.execute(new Runnable() { public void run() {
             try {
                 final ReleaseInfo info = new ReleaseInfo(readMetadata());
-                final boolean newer = info.isNewer(installedCode(app), Build.VERSION.SDK_INT);
-                prefs(app).edit().putLong("next_check", System.currentTimeMillis() + SIX_HOURS).apply();
+                final boolean newer = info.shouldPrompt(installedCode(app), Build.VERSION.SDK_INT,
+                    prefs(app).getInt("deferred_code", 0), prefs(app).getLong("defer_until", 0), System.currentTimeMillis());
                 MAIN.post(new Runnable() { public void run() {
                     BUSY.set(false);
-                    if (activity() == null) return;
+                    if (!foreground || activity() == null) return;
                     if (newer) prompt(info);
-                    else if (manual) toast(Build.VERSION.SDK_INT < info.minSdk && info.code > safeInstalled(app)
-                            ? "The latest update needs a newer Android version." : "Your app is up to date.");
                 }});
             } catch (final Exception failure) {
                 MAIN.post(new Runnable() { public void run() {
                     BUSY.set(false);
-                    if (manual) toast("Could not check for updates. Check your connection and try again.");
+                    // Offline/server failures stay silent; retry on return or the next interval.
                 }});
             }
         }});
     }
-    private static int safeInstalled(Context c) { try { return installedCode(c); } catch (Exception e) { return Integer.MAX_VALUE; } }
+    private static void defer(ReleaseInfo info) {
+        Activity a = activity();
+        if (a != null) prefs(a).edit().putInt("deferred_code", info.code)
+            .putLong("defer_until", System.currentTimeMillis() + SIX_HOURS).apply();
+    }
     private static void prompt(final ReleaseInfo info) {
         Activity a = activity(); if (a == null || dialogOpen) return;
         dialogOpen = true;
         new AlertDialog.Builder(a).setTitle("SFT Pavilion " + info.version + " is available")
             .setMessage(info.notes + "\n\nDownload: " + String.format(Locale.US, "%.1f MB", info.size / 1048576.0)
                 + "\nAndroid will ask you to confirm installation.")
-            .setNegativeButton("Later", (d, which) -> {})
+            .setNegativeButton("Later", (d, which) -> defer(info))
             .setPositiveButton("Update now", (d, which) -> download(info))
+            .setOnCancelListener(d -> defer(info))
             .setOnDismissListener(d -> dialogOpen = false).show();
     }
 
@@ -215,7 +201,7 @@ public final class UpdateManager {
             } catch (Exception e) {
                 temp.delete();
                 MAIN.post(() -> { dismiss(progress); BUSY.set(false);
-                    if (!cancel.get()) toast("Update could not be downloaded or verified. Tap Updates to retry.");
+                    if (!cancel.get()) toast("Update could not be downloaded or verified. Reopen the app to try again.");
                 });
             } finally { if (connection != null) connection.disconnect(); }
         }});
@@ -261,7 +247,7 @@ public final class UpdateManager {
                         current.startActivity(intent);
                     } catch (RuntimeException e) { toast("Android could not open the installer. Download the APK from the Releases page."); }
                 });
-            } catch (Exception e) { MAIN.post(() -> { BUSY.set(false); toast("The downloaded update is missing or changed. Tap Updates to download it again."); }); }
+            } catch (Exception e) { MAIN.post(() -> { BUSY.set(false); toast("The downloaded update is missing or changed. Reopen the app to download it again."); }); }
         });
     }
 }

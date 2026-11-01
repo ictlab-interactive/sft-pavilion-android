@@ -39,4 +39,8 @@ public final class ReleaseInfo {
     public boolean isNewer(int installedCode, int deviceSdk) {
         return code > installedCode && deviceSdk >= minSdk;
     }
+
+    public boolean shouldPrompt(int installedCode, int deviceSdk, int deferredCode, long deferUntil, long now) {
+        return isNewer(installedCode, deviceSdk) && (code != deferredCode || now >= deferUntil);
+    }
 }

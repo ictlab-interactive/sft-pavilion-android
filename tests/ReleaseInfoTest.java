@@ -23,6 +23,11 @@ public final class ReleaseInfoTest {
         require(!r.isNewer(11, 35), "Same release must not prompt again");
         require(!r.isNewer(12, 35), "Older release must not downgrade");
         require(!r.isNewer(10, 22), "Unsupported Android must not prompt");
+        require(r.shouldPrompt(10, 35, 0, 0, 1000), "Automatic popup for a new release");
+        require(!r.shouldPrompt(11, 35, 0, 0, 1000), "No popup when already current");
+        require(!r.shouldPrompt(10, 35, 11, 2000, 1000), "Later snoozes this release");
+        require(r.shouldPrompt(10, 35, 11, 2000, 2000), "Popup returns after snooze expires");
+        require(r.shouldPrompt(10, 35, 10, 2000, 1000), "A different newer release bypasses snooze");
         require(r.apkUrl.equals(ReleaseInfo.ROOT + "download/v1.2.8/SFT-Pavilion.apk"), "Exact APK URL");
         require(new ReleaseInfo(valid().put("apkUrl", "https://evil.example/a.apk").toString()).apkUrl.equals(r.apkUrl), "Ignore injected URL");
         reject("packageName", "another.app");
