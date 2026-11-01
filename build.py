@@ -47,6 +47,12 @@ def download_tools():
     for name, (url, digest) in TOOLS.items():
         dest = CACHE / name
         if not dest.exists() or sha(dest) != digest:
+            baseline = ROOT / 'baseline/SFT-Pavilion-v1.2.6.apk'
+            if name == 'base.apk' and baseline.exists():
+                if sha(baseline) != digest:
+                    raise RuntimeError('Bundled baseline APK checksum mismatch')
+                shutil.copyfile(baseline, dest)
+                continue
             print('Fetching', name, flush=True)
             request = urllib.request.Request(url, headers={'User-Agent': 'SFT-Pavilion-Build/1'})
             temp = dest.with_suffix('.part')

@@ -46,8 +46,7 @@ APK as an update over the existing installation, then check saved reminders.
    timetable reminders, permissions, and the automatic future-version prompt.
 4. Create a GitHub Release with the exact tag `v<versionName>` (for example `v1.2.9`).
 5. Attach BOTH `dist/SFT-Pavilion.apk` and `dist/update.json`. Keep these filenames.
-   Publish it as the latest stable release. Keep older releases available because
-   this recovered build depends on the fixed v1.2.6 baseline.
+   Publish it as the latest stable release.
 
 Upload the two generated files from the same build. `update.json` contains the APK's
 actual digest and byte count. Do not manually invent those fields, upload a source
@@ -59,8 +58,10 @@ An APK rebuild is needed for changes to Android functionality.
 
 ## Build locally (Linux, JDK 17 and Python 3)
 
-The build downloads hash-pinned Apktool 3.0.3, Android SDK Build Tools 35,
-Android platform 35, and the original APK. No Gradle installation is required.
+The build downloads hash-pinned Apktool 3.0.3, Android SDK Build Tools 35 and
+Android platform 35. The original APK is bundled in `baseline/` and checked against
+its SHA-256 before use, so deleting an older GitHub Release cannot break the build.
+No Gradle installation is required.
 
 Unsigned compile verification:
 
