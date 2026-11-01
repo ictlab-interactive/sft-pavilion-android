@@ -1,0 +1,6 @@
+{
+  "versionCode": 11,
+  "versionName": "1.2.8",
+  "minSdk": 23,
+  "releaseNotes": "Updates now check automatically when you open the app and while it stays open. A popup appears when a newer version is available. Removed the Updates tab."
+}
