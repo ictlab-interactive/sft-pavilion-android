@@ -1,24 +1,25 @@
-# Android/Gradle
-.gradle/
+.cache/
 build/
+dist/
+private/
+*.jks
+*.keystore
+*.pk8
+*.p12
+__pycache__/
+
+# Preserve the repository's original Android and service-secret exclusions.
+.gradle/
 **/build/
 local.properties
 *.iml
 .idea/
-
-# Signing material — never commit
-*.jks
-*.keystore
 keystore.properties
 signing/
-
-# Firebase/admin secrets
 google-services.json
 serviceAccount*.json
 *service-account*.json
 .env
 .env.*
-
-# OS files
 .DS_Store
 Thumbs.db

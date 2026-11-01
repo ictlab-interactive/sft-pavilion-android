@@ -1,0 +1,6 @@
+{
+  "versionCode": 10,
+  "versionName": "1.2.7",
+  "minSdk": 23,
+  "releaseNotes": "Added in-app update checks, an Updates button, download progress, and verified APK downloads. Existing timetable reminders and website access are preserved."
+}
